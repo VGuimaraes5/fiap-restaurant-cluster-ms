@@ -1,0 +1,103 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-configmap
+  labels:
+    name: mysql-configmap
+data:
+  MYSQL_ROOT_PASSWORD: "challenge"
+  MYSQL_DATABASE: "challenge_db"
+  MYSQL_USER: "user"
+  MYSQL_PASSWORD: "password"
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: mysql-pv-volume
+  labels:
+    type: local
+    app: mysqldatabase
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/mnt/data"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-pv-claim
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysqldatabase
+spec:
+  selector:
+    matchLabels:
+      app: mysqldatabase
+  template:
+    metadata:
+      labels:
+        app: mysqldatabase
+    spec:
+      containers:
+      - name: mysqldatabase
+        image: mysql:8.0.27
+        resources:
+          limits:
+            cpu: "0.5"
+            memory: "1Gi"
+        env:
+          - name: MYSQL_ROOT_PASSWORD
+            valueFrom:
+              configMapKeyRef:
+                name: mysql-configmap
+                key: MYSQL_ROOT_PASSWORD
+          - name: MYSQL_DATABASE
+            valueFrom:
+              configMapKeyRef:
+                name: mysql-configmap
+                key: MYSQL_DATABASE
+          - name: MYSQL_USER
+            valueFrom:
+              configMapKeyRef:
+                name: mysql-configmap
+                key: MYSQL_USER
+          - name: MYSQL_PASSWORD
+            valueFrom:
+              configMapKeyRef:
+                name: mysql-configmap
+                key: MYSQL_PASSWORD
+        ports:
+        - containerPort: 3306
+          name: mysql
+        volumeMounts:
+        - name: mysql-persistent-storage
+          mountPath: /var/lib/mysql
+      volumes:
+      - name: mysql-persistent-storage
+        persistentVolumeClaim:
+          claimName: mysql-pv-claim
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysqldatabase
+  labels:
+    app: mysqldatabase
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 3306
+    targetPort: 3306
+  selector:
+    app: mysqldatabase
